@@ -506,7 +506,7 @@ export default class Scraper {
 
   private async handleHTTPError(
     req: ClientRequest, res: IncomingMessage,
-    cb: (data: Buffer | IncomingHttpHeaders) => void, options?: ScraperRequestOptions): Promise<number> 
+    cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: ScraperRequestOptions): Promise<number> 
   {
     let regex: RegExpExecArray | null;
     let host, path: string | undefined;
@@ -568,7 +568,7 @@ export default class Scraper {
     }
   }
 
-  async request(host: string, path: string, cb: (data: Buffer | IncomingHttpHeaders) => void, options?: ScraperRequestOptions): Promise<number> { 
+  async request(host: string, path: string, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: ScraperRequestOptions): Promise<number> { 
     return new Promise((resolve, reject) => {
       const reqCookie = this.parseCookie(host, path);
       const reqOptions: RequestOptions = {
@@ -587,7 +587,7 @@ export default class Scraper {
 
         if (options && options.headersOnly) {
           res.destroy();
-          cb(res.headers);
+          cb(Buffer.alloc(0), res.headers);
           return resolve(0);
         }
 
@@ -605,7 +605,7 @@ export default class Scraper {
             case 'gzip':
               const gzip = zlib.createGunzip();
               res.pipe(gzip);
-              gzip.on('data', cb);
+              gzip.on('data', (chunk) => cb(chunk, res.headers));
               gzip.on('end', () => {
                 options && options.timeout && this.timeout(options.timeout);
                 resolve(0);
@@ -614,7 +614,7 @@ export default class Scraper {
             case 'deflate':
               const deflate = zlib.createInflate();
               res.pipe(deflate);
-              deflate.on('data', cb);
+              deflate.on('data', (chunk) => cb(chunk, res.headers));
               deflate.on('end', () => {
                 options && options.timeout && this.timeout(options.timeout);
                 resolve(0);
@@ -623,7 +623,7 @@ export default class Scraper {
             case 'br':
               const br = zlib.createBrotliDecompress();
               res.pipe(br);
-              br.on('data', cb);
+              br.on('data', (chunk) => cb(chunk, res.headers));
               br.on('end', () => {
                 options && options.timeout && this.timeout(options.timeout);
                 resolve(0);
@@ -635,7 +635,7 @@ export default class Scraper {
           }
         }
         else {
-          res.on('data', cb);
+          res.on('data', (chunk) => cb(chunk, res.headers));
           res.on('end', () => {
             options && options.timeout && this.timeout(options.timeout);
             resolve(0);

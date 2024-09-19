@@ -35,6 +35,6 @@ export default class Scraper {
     private parseCookie;
     private handleHTTPError;
     private printDebug;
-    request(host: string, path: string, cb: (data: Buffer | IncomingHttpHeaders) => void, options?: ScraperRequestOptions): Promise<number>;
+    request(host: string, path: string, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: ScraperRequestOptions): Promise<number>;
 }
 export {};
