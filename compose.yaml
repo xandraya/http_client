@@ -15,7 +15,6 @@ services:
   database:
     command: ["postgres", "-c", "port=6566"]
     environment:
-      POSTGRES_USER: foobar
       POSTGRES_PASSWORD: password
       POSTGRES_DB: test
     healthcheck:

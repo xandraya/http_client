@@ -86,7 +86,7 @@ export default class Scraper {
     this._store = [];
     this._pub_sufix = [];
     
-    this._agent = new https.Agent(opt && opt.agentOptions || {
+    this._agent = new https.Agent(this._opt.agentOptions || {
       keepAlive: true, // false
       keepAliveMsecs: 45000, // 1000
       maxSockets: 5, // Infinity
@@ -154,7 +154,7 @@ export default class Scraper {
     const config: pg.ClientConfig = Object.freeze({
       host: 'database',
       port: 6566,
-      user: 'foobar',
+      user: 'postgres',
       password: 'password',
       database: 'test',
     });

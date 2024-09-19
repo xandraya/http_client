@@ -11,7 +11,7 @@ describe('Bootup && Cleanup', () => {
     const pgOptions = {
       host: 'database',
       port: 6566,
-      user: 'foobar',
+      user: 'postgres',
       password: 'password',
       database: 'test',
     };
