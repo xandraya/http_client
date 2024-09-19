@@ -112,10 +112,10 @@ export default class Scraper {
       this._opt.agentOptions.keepAlive && (this._headers['Connection'] = 'keep-alive');
   }
 
-  async bootup(): Promise<void> {
+  async bootup(client: pg.Client): Promise<void> {
     return new Promise(async (resolve, reject) => {
       try {
-        this._client = await this.connectPg();
+        this._client = client || await this.connectPg();
         await this.createTables();
         await this.loadPublicSufixes();
         await this.loadCookieStore();

@@ -1,5 +1,3 @@
-/// <reference types="node" />
-/// <reference types="node" />
 import * as pg from 'pg';
 import type { AgentOptions, IncomingHttpHeaders } from 'node:http';
 interface ScraperOptions {
@@ -19,7 +17,7 @@ export default class Scraper {
     private _agent;
     private _headers;
     constructor(opt?: ScraperOptions);
-    bootup(): Promise<void>;
+    bootup(client: pg.Client): Promise<void>;
     teardown(): Promise<void>;
     private timeout;
     private connectPg;
