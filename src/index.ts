@@ -220,6 +220,7 @@ export default class Scraper {
       cookie.creation_time = Number(cookie.creation_time);
       cookie.last_access_time = Number(cookie.last_access_time);
       cookie.expiry_time = Number(cookie.expiry_time);
+      cookie.persistent_flag = true;
     }
     this._store = cookies;
   }
@@ -585,10 +586,11 @@ export default class Scraper {
       const req: ClientRequest = https.request(reqOptions, (res) => {
         this._opt.debug && this.printDebug(req, res);
 
-        if (options && options.headersOnly) {
-          res.destroy();
-          cb(Buffer.alloc(0), res.headers);
-          return resolve(0);
+        try {
+          if (res.headers['set-cookie']) 
+            this.updateStore(req, res);
+        } catch(err: any) {
+          reject(new Error(`REQUEST FAILED: ${err.message}`));
         }
 
         if (res.statusCode !== 200) { 
@@ -599,6 +601,12 @@ export default class Scraper {
         res.on('error', (err: any) => {
           reject(new Error(`REQUEST FAILED: ${err.message} | ${err.code}`));
         });
+
+        if (options && options.headersOnly) {
+          res.destroy();
+          cb(Buffer.alloc(0), res.headers);
+          return resolve(0);
+        }
 
         if (res.headers['content-encoding']) {
           switch (res.headers['content-encoding']) {
@@ -640,13 +648,6 @@ export default class Scraper {
             options && options.timeout && this.timeout(options.timeout);
             resolve(0);
           });
-        }
-
-        try {
-          if (res.headers['set-cookie']) 
-            this.updateStore(req, res);
-        } catch(err: any) {
-          reject(new Error(`REQUEST FAILED: ${err.message}`));
         }
       });
 
