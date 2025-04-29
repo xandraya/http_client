@@ -186,10 +186,10 @@ describe('request', () => {
   });
 
   test('main', () => {
-    return new Promise(async (resolve) => {
+    return expect(new Promise(async (resolve) => {
       const cb = () => {};
-      expect(await scraper.request('www.udemy.com', '/', cb)).toBe(0);
+      expect(await scraper.request('www.example.com', '/', cb)).toBe(0);
       resolve(0);
-    });
+    })).resolves.toBe(0);
   });
 });

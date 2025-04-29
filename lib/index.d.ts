@@ -17,7 +17,7 @@ export default class Scraper {
     private _agent;
     private _headers;
     constructor(opt?: ScraperOptions);
-    bootup(client: pg.Client): Promise<void>;
+    bootup(client?: pg.Client): Promise<void>;
     teardown(): Promise<void>;
     private timeout;
     private connectPg;
