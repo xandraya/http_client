@@ -1,10 +1,10 @@
-import Scraper from '../src/index.ts';
+import HTTPClient from '../src/index.ts';
 
 import { ClientRequest, IncomingMessage } from 'http';
 
 describe('Bootup && Cleanup', () => {
-  let s1: Scraper;
-  let s2: Scraper;
+  let s1: HTTPClient;
+  let s2: HTTPClient;
 
   test('constructing', () => {
     const agentOptions = { keepAlive: false }
@@ -16,8 +16,8 @@ describe('Bootup && Cleanup', () => {
       database: 'test',
     };
 
-    expect(s1 = new Scraper({})).toBeDefined();
-    expect(s2 = new Scraper({ debug: 0, agentOptions, pgOptions })).toBeDefined();
+    expect(s1 = new HTTPClient({})).toBeDefined();
+    expect(s2 = new HTTPClient({ debug: 0, agentOptions, pgOptions })).toBeDefined();
   });
 
   test('bootup', () => {
@@ -40,46 +40,46 @@ describe('Bootup && Cleanup', () => {
 });
 
 describe('Cookie Store', () => {
-  let scraper: Scraper;
+  let client: HTTPClient;
 
   beforeAll(() => {
-    scraper = new Scraper({ debug: 0, agentOptions: { keepAlive: false }});
-    return Promise.resolve(scraper.bootup());
+    client = new HTTPClient({ debug: 0, agentOptions: { keepAlive: false }});
+    return Promise.resolve(client.bootup());
   });
 
   beforeEach(() => {
-    scraper['_store'] = [];
+    client['_store'] = [];
   });
 
   afterAll(() => {
-    return Promise.resolve(scraper.teardown());
+    return Promise.resolve(client.teardown());
   });
 
   test('validateCookieDate', () => {
-    expect(scraper['validateCookieDate']('Sun, 08-Jan-84 11:12:13 GMT')).toContain('08 Jan 1984 11:12:13 GMT');
-    expect(scraper['validateCookieDate']('Sun, 08-Jan-14 11:12:13 GMT')).toContain('08 Jan 2014 11:12:13 GMT');
+    expect(client['validateCookieDate']('Sun, 08-Jan-84 11:12:13 GMT')).toContain('08 Jan 1984 11:12:13 GMT');
+    expect(client['validateCookieDate']('Sun, 08-Jan-14 11:12:13 GMT')).toContain('08 Jan 2014 11:12:13 GMT');
 
     // order: time, DoM, month, year
-    expect(() => scraper['validateCookieDate']('Sun, 08-Jan-14 11:12013 GMT')).toThrow('0111');
-    expect(() => scraper['validateCookieDate']('Sun, 08-Jaf-14 11:12:13 GMT')).toThrow('1101');
-    expect(() => scraper['validateCookieDate']('Sun, 08-Jan- 11:12:13 GMT')).toThrow('1110');
-    expect(() => scraper['validateCookieDate']('Sun, -Jan- 11:12:13 GMT')).toThrow('1010');
-    expect(() => scraper['validateCookieDate']('Sun, 32-Jan-14 11:12:13 GMT')).toThrow('1111');
-    expect(() => scraper['validateCookieDate']('Sun, 08-Jan-1600 11:12:13 GMT')).toThrow('1111');
-    expect(() => scraper['validateCookieDate']('Sun, 08-Jan-14 24:12:13 GMT')).toThrow('1111');
-    expect(() => scraper['validateCookieDate']('Sun, 08-Jan-14 11:60:13 GMT')).toThrow('1111');
-    expect(() => scraper['validateCookieDate']('Sun, 08-Jan-14 11:12:60 GMT')).toThrow('1111');
+    expect(() => client['validateCookieDate']('Sun, 08-Jan-14 11:12013 GMT')).toThrow('0111');
+    expect(() => client['validateCookieDate']('Sun, 08-Jaf-14 11:12:13 GMT')).toThrow('1101');
+    expect(() => client['validateCookieDate']('Sun, 08-Jan- 11:12:13 GMT')).toThrow('1110');
+    expect(() => client['validateCookieDate']('Sun, -Jan- 11:12:13 GMT')).toThrow('1010');
+    expect(() => client['validateCookieDate']('Sun, 32-Jan-14 11:12:13 GMT')).toThrow('1111');
+    expect(() => client['validateCookieDate']('Sun, 08-Jan-1600 11:12:13 GMT')).toThrow('1111');
+    expect(() => client['validateCookieDate']('Sun, 08-Jan-14 24:12:13 GMT')).toThrow('1111');
+    expect(() => client['validateCookieDate']('Sun, 08-Jan-14 11:60:13 GMT')).toThrow('1111');
+    expect(() => client['validateCookieDate']('Sun, 08-Jan-14 11:12:60 GMT')).toThrow('1111');
   });
 
   test('computeDefaultPath', () => {
-    expect(scraper['computeDefaultPath']('')).toBe('/');
-    expect(scraper['computeDefaultPath']('foobar')).toBe('/');
-    expect(scraper['computeDefaultPath']('/foobar')).toBe('/');
-    expect(scraper['computeDefaultPath']('/foo/bar')).toBe('/foo');
+    expect(client['computeDefaultPath']('')).toBe('/');
+    expect(client['computeDefaultPath']('foobar')).toBe('/');
+    expect(client['computeDefaultPath']('/foobar')).toBe('/');
+    expect(client['computeDefaultPath']('/foo/bar')).toBe('/foo');
   });
 
   test('updateStore && computeTempStore && parseSetCookie', () => {
-    scraper['_store'] = [
+    client['_store'] = [
       {
         name: 'update', value: 'toBeUpdated',
         creation_time: Date.now(), last_access_time: Date.now(),
@@ -111,13 +111,13 @@ describe('Cookie Store', () => {
       }
     }
 
-    scraper['updateStore'](req as ClientRequest, res as IncomingMessage);
-    expect(scraper['_store']).toHaveLength(5);
+    client['updateStore'](req as ClientRequest, res as IncomingMessage);
+    expect(client['_store']).toHaveLength(5);
   });
 
   test('parseCookie', () => {
     const time = Date.now()-9999;
-    scraper['_store'] = [
+    client['_store'] = [
       // evicted
       {
         name: 'toBeEvicted', value: 'foobar',
@@ -164,31 +164,31 @@ describe('Cookie Store', () => {
       },
     ];
 
-    const parsed_cookie = scraper['parseCookie']('www.example.com', '/foo/bar/baz?key=value#text').split(';');
-    expect(scraper['_store']).toHaveLength(6);
+    const parsed_cookie = client['parseCookie']('www.example.com', '/foo/bar/baz?key=value#text').split(';');
+    expect(client['_store']).toHaveLength(6);
     expect(parsed_cookie).toHaveLength(4);
     expect(parsed_cookie[0]).toContain('sorted_first=true');
     expect(parsed_cookie[1]).toContain('sorted_second=true');
-    expect(scraper['_store'][4].last_access_time).not.toBe(time);
+    expect(client['_store'][4].last_access_time).not.toBe(time);
   })
 });
 
 describe('request', () => {
-  let scraper: Scraper;
+  let client: HTTPClient;
 
   beforeAll(() => {
-    scraper = new Scraper({ debug: 1 });
-    return Promise.resolve(scraper.bootup());
+    client = new HTTPClient({ debug: 1 });
+    return Promise.resolve(client.bootup());
   });
 
   afterAll(() => {
-    return Promise.resolve(scraper.teardown());
+    return Promise.resolve(client.teardown());
   });
 
   test('main', () => {
     return expect(new Promise(async (resolve) => {
       const cb = () => {};
-      expect(await scraper.request('www.example.com', '/', cb)).toBe(0);
+      expect(await client.request('www.example.com', '/', cb)).toBe(0);
       resolve(0);
     })).resolves.toBe(0);
   });

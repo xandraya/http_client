@@ -1,22 +1,14 @@
 import * as pg from 'pg';
-import type { AgentOptions, IncomingHttpHeaders } from 'node:http';
-interface ScraperOptions {
-    debug?: number;
-    agentOptions?: AgentOptions;
-    pgOptions?: pg.ClientConfig;
-}
-interface ScraperRequestOptions {
-    timeout?: number;
-    headersOnly?: boolean;
-}
-export default class Scraper {
+import type { IncomingHttpHeaders } from 'node:http';
+import type { HTTPClientOptions } from './types';
+export default class HttpClient {
     private _opt;
     private _client;
     private _store;
     private _pub_sufix;
     private _agent;
     private _headers;
-    constructor(opt?: ScraperOptions);
+    constructor(opt?: HTTPClientOptions);
     bootup(client?: pg.Client): Promise<void>;
     teardown(): Promise<void>;
     private timeout;
@@ -37,4 +29,3 @@ export default class Scraper {
     private printDebug;
     request(host: string, path: string, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: ScraperRequestOptions): Promise<number>;
 }
-export {};

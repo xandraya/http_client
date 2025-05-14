@@ -1,4 +1,4 @@
-name: scraper
+name: httpclient
 
 services:
   app:

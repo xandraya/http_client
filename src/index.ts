@@ -1,61 +1,11 @@
-/* RFCs referenced
- * 5234 | Augmented BNF for Syntax Specifications: ABNF
- * 6265 | HTTP State Management Mechanism
-*/
-
 import * as https from 'node:https';
 import * as zlib from 'node:zlib';
 import * as pg from 'pg';
 
-import type { ClientRequest, IncomingMessage, Agent, AgentOptions, RequestOptions, OutgoingHttpHeaders, IncomingHttpHeaders } from 'node:http';
+import type { ClientRequest, IncomingMessage, Agent, RequestOptions, OutgoingHttpHeaders, IncomingHttpHeaders } from 'node:http';
 import type { Client } from 'pg';
+import type { HTTPClientOptions, HTTPClientRequestOptions, CookieAttrList, Cookie, Month, CookieDate  } from './types';
 
-interface ScraperOptions {
-  debug?: number
-  agentOptions?: AgentOptions
-  pgOptions?: pg.ClientConfig
-}
-
-interface ScraperRequestOptions {
-  timeout?: number
-  headersOnly?: boolean
-}
-
-interface CookieAttrList {
-  name: string
-  value: string
-  expires?: string
-  max_age?: string
-  domain?: string
-  path?: string
-  secure?: boolean
-  httponly?: boolean
-}
-
-interface Cookie {
-  name: string
-  value: string
-  creation_time: number
-  last_access_time: number
-  expiry_time?: number
-  domain?: string
-  path?: string
-  persistent_flag?: boolean
-  host_only_flag?: boolean
-  secure_only_flag?: boolean
-  http_only_flag?: boolean
-}
-
-type Month = "jan" | "feb" | "mar" | "apr" | "may" | "jun" | "jul" | "aug" | "sep" | "oct" | "nov" | "dec";
-
-interface CookieDate {
-  hour: number
-  minute: number
-  second: number
-  day_of_month: number
-  month: Month
-  year: number
-}
 
 const colors = Object.freeze({
 	red: '\x1b[0;31m%s\x1b[0m',
@@ -67,20 +17,20 @@ const colors = Object.freeze({
 });
 
 /**
- * Each Scraper instance should use its own database
-  *@usage * new Scraper(opt?: ScraperOptions)
-          * await scraper.bootup()
-          * await scraper.teardown()
+ * Each HTTPClient instance should use its own database
+  *@usage * const client = new HTTPClient(opt?: ScraperOptions)
+          * await client.bootup()
+          * await client.teardown()
 */
-export default class Scraper {
-  private _opt!: ScraperOptions;
+export default class HttpClient {
+  private _opt!: HTTPClientOptions;
   private _client!: Client;
   private _store!: Cookie[];
   private _pub_sufix!: string[];
   private _agent!: Agent;
   private _headers!: OutgoingHttpHeaders;
 
-  constructor(opt?: ScraperOptions) {
+  constructor(opt?: HTTPClientOptions) {
     this._opt = Object.assign({}, opt);
 
     this._store = [];
@@ -507,7 +457,7 @@ export default class Scraper {
 
   private async handleHTTPError(
     req: ClientRequest, res: IncomingMessage,
-    cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: ScraperRequestOptions): Promise<number> 
+    cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: HTTPClientRequestOptions): Promise<number> 
   {
     let regex: RegExpExecArray | null;
     let host, path: string | undefined;
@@ -569,7 +519,7 @@ export default class Scraper {
     }
   }
 
-  async request(host: string, path: string, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: ScraperRequestOptions): Promise<number> { 
+  async request(host: string, path: string, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: HTTPClientRequestOptions): Promise<number> { 
     return new Promise((resolve, reject) => {
       const reqCookie = this.parseCookie(host, path);
       const reqOptions: RequestOptions = {
