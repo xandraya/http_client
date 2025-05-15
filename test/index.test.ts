@@ -1,5 +1,4 @@
 import HTTPClient from '../src/index.ts';
-
 import { ClientRequest, IncomingMessage } from 'http';
 
 describe('Bootup && Cleanup', () => {
@@ -185,11 +184,37 @@ describe('request', () => {
     return Promise.resolve(client.teardown());
   });
 
-  test('main', () => {
+  test('GET', () => {
     return expect(new Promise(async (resolve) => {
-      const cb = () => {};
-      expect(await client.request('www.example.com', '/', cb)).toBe(0);
+      const opts = {
+        host: 'httpbin.org',
+        path: '/get',
+        method: 'GET' as 'GET',
+      }
+
+      let data: string = '';
+      const cb = (chunk: Buffer) => data += chunk;
+      expect(await client.request(opts, cb)).toBe(0);
+      expect(JSON.parse(data).url).toBe('https://httpbin.org/get');
       resolve(0);
     })).resolves.toBe(0);
-  });
+  }, 10000);
+  
+  test('POST', () => {
+    return expect(new Promise(async (resolve) => {
+      const opts = {
+        host: 'httpbin.org',
+        path: '/post',
+        method: 'POST' as 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        }
+      }
+      let data: string = '';
+      const cb = (chunk: Buffer) => data += chunk;
+      expect(await client.request(opts, cb, 'foo=bar')).toBe(0);
+      expect(JSON.parse(data).form.foo).toBe('bar');
+      resolve(0);
+    })).resolves.toBe(0);
+  }, 10000);
 });

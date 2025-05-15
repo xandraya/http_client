@@ -6,7 +6,6 @@ import type { ClientRequest, IncomingMessage, Agent, RequestOptions, OutgoingHtt
 import type { Client } from 'pg';
 import type { HTTPClientOptions, HTTPClientRequestOptions, CookieAttrList, Cookie, Month, CookieDate  } from './types';
 
-
 const colors = Object.freeze({
 	red: '\x1b[0;31m%s\x1b[0m',
 	green: '\x1b[0;32m%s\x1b[0m',
@@ -56,7 +55,7 @@ export default class HttpClient {
       'Sec-Fetch-User': '?1',
       'Sec-GPC': '1',
       'Upgrade-Insecure-Requests': 1,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:124.0) Gecko/20100101 Firefox/124.0',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:137.0) Gecko/20100101 Firefox/137.0',
     };
     !this._opt.agentOptions ? this._headers['Connection'] = 'keep-alive' :
       this._opt.agentOptions.keepAlive && (this._headers['Connection'] = 'keep-alive');
@@ -154,7 +153,7 @@ export default class HttpClient {
           data = data.trimStart();
         }
       };
-      await this.request('publicsuffix.org', '/list/public_suffix_list.dat', cb); 
+      await this.request({ host: 'publicsuffix.org', path: '/list/public_suffix_list.dat', method: 'GET' }, cb); 
 
       await this._client.query('truncate table pub_sufix');
       await this._client.query(`insert into pub_sufix (timestamp, data) values (${Date.now()}, '${JSON.stringify(this._pub_sufix)}')`);
@@ -455,9 +454,7 @@ export default class HttpClient {
     return parsed_cookie_list;
   }
 
-  private async handleHTTPError(
-    req: ClientRequest, res: IncomingMessage,
-    cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: HTTPClientRequestOptions): Promise<number> 
+  private async handleHTTPError(res: IncomingMessage, opts: HTTPClientRequestOptions, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, postData?: string): Promise<number> 
   {
     let regex: RegExpExecArray | null;
     let host, path: string | undefined;
@@ -471,13 +468,13 @@ export default class HttpClient {
 
         if (!res.headers.location) throw new Error('302 - redirect path not obtained');
         regex = /https:\/\/([^\/]*)(.*)/.exec(res.headers.location); 
-        if (!regex) throw new Error('302 - regex failed');
+        if (!regex) throw new Error('302 - could not parse URL');
         path = regex.pop();
         if (!path) throw new Error('302 - could not parse PATH');
         host = regex.pop();
         if (!host) throw new Error('302 - could not parse HOST');
 
-        return this.request(host, path, cb, options);
+        return this.request(Object.assign(opts, { host, path }) , cb, postData);
       case 403:
         throw new Error('403 - Forbidden');
       case 429:
@@ -485,7 +482,7 @@ export default class HttpClient {
         console.log(colors.yellow, 'Server returned 429; Waiting...');
 
         await this.timeout(1000*60*5);
-        return this.request(req.host, req.path, cb, options);
+        return this.request(Object.assign(opts, { host, path }) , cb, postData);
       default:
         throw new Error('Missing HTTP error handle');
     }
@@ -519,18 +516,18 @@ export default class HttpClient {
     }
   }
 
-  async request(host: string, path: string, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: HTTPClientRequestOptions): Promise<number> { 
+  async request(opts: HTTPClientRequestOptions, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, postData?: string): Promise<number> { 
     return new Promise((resolve, reject) => {
-      const reqCookie = this.parseCookie(host, path);
+      const reqCookie = this.parseCookie(opts.host, opts.path);
       const reqOptions: RequestOptions = {
         agent: this._agent,
-        method: 'GET',
-        host: host,
-        path: path, 
+        method: opts.method,
+        host: opts.host,
+        path: opts.path, 
         family: 4,
         protocol: 'https:',
         port: 443,
-        headers: reqCookie ? Object.assign({}, this._headers, { 'Cookie': reqCookie }) : this._headers,
+        headers: reqCookie || opts.headers ? Object.assign({}, this._headers, { 'Cookie': reqCookie }, opts.headers) : this._headers,
       }
 
       const req: ClientRequest = https.request(reqOptions, (res) => {
@@ -543,16 +540,16 @@ export default class HttpClient {
           reject(new Error(`REQUEST FAILED: ${err.message}`));
         }
 
-        if (res.statusCode !== 200) { 
+        if (!String(res.statusCode).match(/^2\d{2}$/)) { 
           res.destroy();
-          return resolve(this.handleHTTPError(req, res, cb, options));
+          return resolve(this.handleHTTPError(res, opts, cb, postData));
         }
 
         res.on('error', (err: any) => {
           reject(new Error(`REQUEST FAILED: ${err.message} | ${err.code}`));
         });
 
-        if (options && options.headersOnly) {
+        if (opts.headersOnly) {
           res.destroy();
           cb(Buffer.alloc(0), res.headers);
           return resolve(0);
@@ -565,7 +562,7 @@ export default class HttpClient {
               res.pipe(gzip);
               gzip.on('data', (chunk) => cb(chunk, res.headers));
               gzip.on('end', () => {
-                options && options.timeout && this.timeout(options.timeout);
+                opts.timeout && this.timeout(opts.timeout);
                 resolve(0);
               });
               break;
@@ -574,7 +571,7 @@ export default class HttpClient {
               res.pipe(deflate);
               deflate.on('data', (chunk) => cb(chunk, res.headers));
               deflate.on('end', () => {
-                options && options.timeout && this.timeout(options.timeout);
+                opts.timeout && this.timeout(opts.timeout);
                 resolve(0);
               });
               break;
@@ -583,7 +580,7 @@ export default class HttpClient {
               res.pipe(br);
               br.on('data', (chunk) => cb(chunk, res.headers));
               br.on('end', () => {
-                options && options.timeout && this.timeout(options.timeout);
+                opts.timeout && this.timeout(opts.timeout);
                 resolve(0);
               });
               break;
@@ -595,7 +592,7 @@ export default class HttpClient {
         else {
           res.on('data', (chunk) => cb(chunk, res.headers));
           res.on('end', () => {
-            options && options.timeout && this.timeout(options.timeout);
+            opts.timeout && this.timeout(opts.timeout);
             resolve(0);
           });
         }
@@ -607,12 +604,13 @@ export default class HttpClient {
           console.log(colors.yellow, 'Connection closed before receiving the response; Retrying in 15s...');
 
           await this.timeout(1000*15);
-          resolve(this.request(req.host, req.path, cb, options));
+          resolve(this.request(opts, cb, postData));
         }
         else
           reject(new Error(`REQUEST FAILED: ${err.message} | ${err.code}`));
       });
 
+      opts.method === 'POST' && req.write(postData);
       req.end();
     });
   }

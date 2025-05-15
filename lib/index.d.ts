@@ -1,6 +1,6 @@
 import * as pg from 'pg';
 import type { IncomingHttpHeaders } from 'node:http';
-import type { HTTPClientOptions } from './types';
+import type { HTTPClientOptions, HTTPClientRequestOptions } from './types';
 export default class HttpClient {
     private _opt;
     private _client;
@@ -27,5 +27,5 @@ export default class HttpClient {
     private parseCookie;
     private handleHTTPError;
     private printDebug;
-    request(host: string, path: string, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, options?: ScraperRequestOptions): Promise<number>;
+    request(opts: HTTPClientRequestOptions, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, postData?: string): Promise<number>;
 }

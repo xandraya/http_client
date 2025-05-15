@@ -5,6 +5,10 @@ export interface HTTPClientOptions {
 }
 
 export interface HTTPClientRequestOptions {
+  host: string
+  path: string
+  method: 'GET' | 'POST'
+  headers?: { [name: string]: string | number }
   timeout?: number
   headersOnly?: boolean
 }

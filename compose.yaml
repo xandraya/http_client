@@ -11,6 +11,23 @@ services:
     networks: 
       - custom
     restart: "no"
+    develop:
+      watch:
+        - action: rebuild
+          path: ./src
+          target: /app/src
+        - action: rebuild
+          path: ./test
+          target: /app/test
+        - action: rebuild
+          path: ./tsconfig.json
+          target: /app/tsconfig.json
+        - action: rebuild
+          path: ./jest.config.ts
+          target: /app/jest.config.ts
+        - action: rebuild
+          path: ./package.json
+          target: /app/package.json
 
   database:
     command: ["postgres", "-c", "port=6566"]
