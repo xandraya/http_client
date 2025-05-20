@@ -17,11 +17,11 @@ const colors = Object.freeze({
 
 /**
  * Each HTTPClient instance should use its own database
-  *@usage * const client = new HTTPClient(opt?: ScraperOptions)
+  *@usage * const client = new HTTPClient(opt?: HTTPClientOptions)
           * await client.bootup()
           * await client.teardown()
 */
-export default class HttpClient {
+export default class HTTPClient {
   private _opt!: HTTPClientOptions;
   private _client!: Client;
   private _store!: Cookie[];
@@ -526,7 +526,7 @@ export default class HttpClient {
         path: opts.path, 
         family: 4,
         protocol: 'https:',
-        port: 443,
+        port: opts.port || 443,
         headers: reqCookie || opts.headers ? Object.assign({}, this._headers, { 'Cookie': reqCookie }, opts.headers) : this._headers,
       }
 

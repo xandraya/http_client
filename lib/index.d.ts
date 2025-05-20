@@ -1,7 +1,7 @@
 import * as pg from 'pg';
 import type { IncomingHttpHeaders } from 'node:http';
 import type { HTTPClientOptions, HTTPClientRequestOptions } from './types';
-export default class HttpClient {
+export default class HTTPClient {
     private _opt;
     private _client;
     private _store;
