@@ -1,3 +1,4 @@
+import * as http from 'node:http';
 import * as https from 'node:https';
 import * as zlib from 'node:zlib';
 import * as pg from 'pg';
@@ -27,15 +28,11 @@ export default class HTTPClient {
   private _store!: Cookie[];
   private _pub_sufix!: string[];
   private _agent!: Agent;
+  private _secureAgent!: Agent;
   private _headers!: OutgoingHttpHeaders;
 
   constructor(opt?: HTTPClientOptions) {
-    this._opt = Object.assign({}, opt);
-
-    this._store = [];
-    this._pub_sufix = [];
-    
-    this._agent = new https.Agent(this._opt.agentOptions || {
+    const agentOpts = Object.freeze({
       keepAlive: true, // false
       keepAliveMsecs: 45000, // 1000
       maxSockets: 5, // Infinity
@@ -43,6 +40,14 @@ export default class HTTPClient {
       maxFreeSockets: 5, // 256
       scheduling: 'fifo', // 'lifo'
     });
+
+    this._opt = Object.assign({}, opt);
+
+    this._store = [];
+    this._pub_sufix = [];
+
+    this._agent = new http.Agent(this._opt.agentOptions || agentOpts);
+    this._secureAgent = new https.Agent(this._opt.agentOptions || agentOpts);
 
     this._headers = {
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
@@ -266,9 +271,11 @@ export default class HTTPClient {
   }
 
   private pathMatch(request_path: string, cookie_path: string): boolean {
+    const pos = request_path.search(/\?/);
+    if (pos >= 0) request_path = request_path.slice(0, pos);
     return cookie_path === request_path || 
-      request_path.startsWith(cookie_path) && 
-        (cookie_path.endsWith(String.fromCharCode(0x2F)) || request_path.slice(cookie_path.length).startsWith(String.fromCharCode(0x2F)))
+      request_path.startsWith(cookie_path) && (cookie_path.endsWith(String.fromCharCode(0x2F)) || 
+      request_path.slice(cookie_path.length).startsWith(String.fromCharCode(0x2F)))
   }
 
   private parseSetCookie(res: IncomingMessage): CookieAttrList[] {
@@ -280,17 +287,30 @@ export default class HTTPClient {
 
       let [name_value, ...unparsed_attr] = cookie.split(';');
 
-      if (name_value.search(/=/) === -1) continue; 
-      let [name, value] = name_value.split('=');
+      let name, value, pos;
+      if ((pos = name_value.search('=')) > 0) {
+        name = name_value.slice(0, pos);
+        value = name_value.slice(pos+1);
+      } else {
+        name = '';
+        value = name_value;
+      }
       name = name.replace(/(^\s+|\s+$)/g, '');
       value = value.replace(/(^\s+|\s+$)/g, '');
-      if (!name) continue;
+      if (!name && !value) continue;
       validated.name = name;
       validated.value = value;
 
       if (unparsed_attr) {
         for (let attr of unparsed_attr) {
-          [name, value] = attr.split('=');
+          let name, value, pos;
+          if ((pos = attr.search('=')) > 0) {
+            name = attr.slice(0, pos);
+            value = attr.slice(pos+1);
+          } else {
+            name = attr;
+            value = undefined;
+          }
           name = name.replace(/(^\s+|\s+$)/g, '');
           value && (value = value.replace(/(^\s+|\s+$)/g, ''));
           if (!name) continue;
@@ -326,7 +346,8 @@ export default class HTTPClient {
           if (name.toLowerCase() === 'path') {
             if (!value || !value[0].match(/\x2F/))
               validated.path = this.computeDefaultPath(res.url);
-            else validated.path = res.url!.split(String.fromCharCode(0x3F))[0];
+            //else validated.path = res.url!.split(String.fromCharCode(0x3F))[0];
+            else validated.path = value;
             continue;
           }
 
@@ -347,6 +368,7 @@ export default class HTTPClient {
   }
 
   private computeTempStore(req: ClientRequest, res: IncomingMessage): Cookie[] { 
+    const store = this._store;
     const attrListArray = this.parseSetCookie(res);
     const tempStore: Cookie[] = [];
     const canonHostname = this.computeCanonHostname(req.host);
@@ -387,7 +409,23 @@ export default class HTTPClient {
 
       cookie.path = attrList.path ? attrList.path : this.computeDefaultPath(res.url);
       cookie.secure_only_flag = attrList.secure ? true : false;
+      if (cookie.secure_only_flag && req.protocol !== 'https:') continue;
       cookie.http_only_flag = attrList.httponly ? true : false;
+
+      let dump = false;
+      if (!cookie.secure_only_flag && req.protocol !== 'https:')
+        for (let i=0; i<store.length; i++) {
+          if (store[i].name === cookie.name && store[i].secure_only_flag && 
+            (this.domainMatch(cookie.domain || '', store[i].domain || '') && this.domainMatch(store[i].domain || '', cookie.domain || '')) &&
+            this.pathMatch(cookie.path || '', store[i].path || '')
+          ) { dump = true; break; }
+        }
+      if (dump) continue;
+
+      if (cookie.name.startsWith('__Secure-') && !cookie.secure_only_flag) continue;
+      if (cookie.name.startsWith('__Host-') && 
+        (!cookie.secure_only_flag || !cookie.host_only_flag || cookie.path && cookie.path !== '/')) 
+        continue;
 
       tempStore.push(cookie);
     }
@@ -396,8 +434,8 @@ export default class HTTPClient {
   }
 
   private updateStore(req: ClientRequest, res: IncomingMessage): void {
-    const tempStore = this.computeTempStore(req, res);
     const store = this._store;
+    const tempStore = this.computeTempStore(req, res);
 
     for (let i=0; i<tempStore.length; i++) {
       for (let j=0; j<store.length; j++) {
@@ -409,28 +447,28 @@ export default class HTTPClient {
       }
     }
 
-    Object.assign(store, tempStore);
+    store.push(...tempStore);
   }
 
-  private parseCookie(host: string, path: string): string { 
+  private parseCookie(host: string, path: string, protocol: 'http:' | 'https:'): string { 
     const store = this._store;
     let parsed_cookie_list: string = '';
 
-    for (let i=0; i<store.length; i++) {
-      Date.now() - (store[i].expiry_time as number) > 0 && store.splice(i, 1);
-    }
+    for (let i=0; i<store.length; i++)
+      typeof store[i].expiry_time === 'number' && Date.now() - store[i].expiry_time! > 0 && store.splice(i, 1);
 
     const cookie_list = store.filter(cookie => {
-      if ((
-        cookie.host_only_flag && this.computeCanonHostname(host) === cookie.domain ||
+      if (
+        (cookie.host_only_flag && this.computeCanonHostname(host) === cookie.domain ||
           !cookie.host_only_flag && this.domainMatch(host, cookie.domain as string)) &&
-        this.pathMatch(path, cookie.path as string)
+        this.pathMatch(path, cookie.path || '') &&
+        (protocol === 'https:' && cookie.secure_only_flag || protocol === 'http:' && !cookie.secure_only_flag)
       ) return true;
     });
 
     cookie_list.sort((a: Cookie, b: Cookie) => {
-      const aPath = a.path as string;
-      const bPath = b.path as string;
+      const aPath = a.path || '';
+      const bPath = b.path || '';
       if (aPath.length < bPath.length) return 1;
       else if (aPath.length === bPath.length)
         return a.creation_time < b.creation_time ? -1 : 1;
@@ -467,14 +505,17 @@ export default class HTTPClient {
         }
 
         if (!res.headers.location) throw new Error('302 - redirect path not obtained');
-        regex = /https:\/\/([^\/]*)(.*)/.exec(res.headers.location); 
+        res.headers.location.startsWith('http') ?
+          regex = /https:\/\/([^\/]*)(\/.*)/.exec(res.headers.location) :
+          regex = /(\/.*)/.exec(res.headers.location);
         if (!regex) throw new Error('302 - could not parse URL');
+        regex.shift();
         path = regex.pop();
         if (!path) throw new Error('302 - could not parse PATH');
         host = regex.pop();
-        if (!host) throw new Error('302 - could not parse HOST');
+        if (!host) host = opts.host;
 
-        return this.request(Object.assign(opts, { host, path }) , cb, postData);
+        return this.request(Object.assign({}, opts, { host, path }) , cb, postData);
       case 403:
         throw new Error('403 - Forbidden');
       case 429:
@@ -482,7 +523,7 @@ export default class HTTPClient {
         console.log(colors.yellow, 'Server returned 429; Waiting...');
 
         await this.timeout(1000*60*5);
-        return this.request(Object.assign(opts, { host, path }) , cb, postData);
+        return this.request(Object.assign({}, opts, { host, path }) , cb, postData);
       default:
         throw new Error('Missing HTTP error handle');
     }
@@ -518,19 +559,20 @@ export default class HTTPClient {
 
   async request(opts: HTTPClientRequestOptions, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, postData?: string): Promise<number> { 
     return new Promise((resolve, reject) => {
-      const reqCookie = this.parseCookie(opts.host, opts.path);
+      const protocol = opts.protocol === 'http' ? http : https; 
+      const reqCookie = this.parseCookie(opts.host, opts.path, protocol === http ? 'http:' : 'https:');
       const reqOptions: RequestOptions = {
-        agent: this._agent,
+        agent: (protocol === http ? this._agent : this._secureAgent),
         method: opts.method,
         host: opts.host,
         path: opts.path, 
         family: 4,
-        protocol: 'https:',
-        port: opts.port || 443,
+        protocol: (protocol === http ? 'http:' : 'https:'),
+        port: opts.port || (protocol === http ? '80' : '443'),
         headers: reqCookie || opts.headers ? Object.assign({}, this._headers, { 'Cookie': reqCookie }, opts.headers) : this._headers,
       }
 
-      const req: ClientRequest = https.request(reqOptions, (res) => {
+      const req: ClientRequest = protocol.request(reqOptions, (res) => {
         this._opt.debug && this.printDebug(req, res);
 
         try {

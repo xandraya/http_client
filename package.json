@@ -9,7 +9,7 @@
   ],
   "private": true,
   "scripts": {
-    "test": "npx jest",
+    "test": "npx jest --roots ./test --detectOpenHandles",
     "build": "tsc"
   },
   "author": "xandraya",

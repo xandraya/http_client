@@ -7,6 +7,7 @@ export default class HTTPClient {
     private _store;
     private _pub_sufix;
     private _agent;
+    private _secureAgent;
     private _headers;
     constructor(opt?: HTTPClientOptions);
     bootup(client?: pg.Client): Promise<void>;

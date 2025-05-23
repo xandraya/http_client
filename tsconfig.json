@@ -13,14 +13,14 @@
     "declaration": true,
     "removeComments": true,
     "useDefineForClassFields": true,
-    "allowImportingTsExtensions": true,
     "forceConsistentCasingInFileNames": true
   },
   "ts-node": {
     "transpileOnly": true,
     "compilerOptions": {
       "moduleResolution": "node10",
-      "noEmit": true
+      "noEmit": true,
+      "allowImportingTsExtensions": true
     }
   },
   "include": ["src/*.ts"],

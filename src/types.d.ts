@@ -8,6 +8,7 @@ export interface HTTPClientRequestOptions {
   host: string
   path: string
   method: 'GET' | 'POST'
+  protocol?: 'http' | 'https'
   port?: number
   headers?: { [name: string]: string | number }
   timeout?: number
