@@ -525,7 +525,7 @@ export default class HTTPClient {
         await this.timeout(1000*60*5);
         return this.request(Object.assign({}, opts, { host, path }) , cb, postData);
       default:
-        throw new Error('Missing HTTP error handle');
+        throw new Error(`Missing HTTP error handler for status code ${res.statusCode}`);
     }
   }
 
