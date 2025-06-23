@@ -603,8 +603,8 @@ export default class HTTPClient {
               const gzip = zlib.createGunzip();
               res.pipe(gzip);
               gzip.on('data', (chunk) => cb(chunk, res.headers));
-              gzip.on('end', () => {
-                opts.timeout && this.timeout(opts.timeout);
+              gzip.on('end', async () => {
+                opts.timeout && await this.timeout(opts.timeout);
                 resolve(0);
               });
               break;
@@ -612,8 +612,8 @@ export default class HTTPClient {
               const deflate = zlib.createInflate();
               res.pipe(deflate);
               deflate.on('data', (chunk) => cb(chunk, res.headers));
-              deflate.on('end', () => {
-                opts.timeout && this.timeout(opts.timeout);
+              deflate.on('end', async () => {
+                opts.timeout && await this.timeout(opts.timeout);
                 resolve(0);
               });
               break;
@@ -621,8 +621,8 @@ export default class HTTPClient {
               const br = zlib.createBrotliDecompress();
               res.pipe(br);
               br.on('data', (chunk) => cb(chunk, res.headers));
-              br.on('end', () => {
-                opts.timeout && this.timeout(opts.timeout);
+              br.on('end', async () => {
+                opts.timeout && await this.timeout(opts.timeout);
                 resolve(0);
               });
               break;
@@ -633,8 +633,8 @@ export default class HTTPClient {
         }
         else {
           res.on('data', (chunk) => cb(chunk, res.headers));
-          res.on('end', () => {
-            opts.timeout && this.timeout(opts.timeout);
+          res.on('end', async () => {
+            opts.timeout && await this.timeout(opts.timeout);
             resolve(0);
           });
         }
