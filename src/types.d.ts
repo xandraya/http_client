@@ -13,6 +13,7 @@ export interface HTTPClientRequestOptions {
   headers?: { [name: string]: string | number }
   timeout?: number
   headersOnly?: boolean
+  useCookies?: boolean
 }
 
 export interface CookieAttrList {

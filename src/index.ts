@@ -5,7 +5,7 @@ import * as pg from 'pg';
 
 import type { ClientRequest, IncomingMessage, Agent, RequestOptions, OutgoingHttpHeaders, IncomingHttpHeaders } from 'node:http';
 import type { Client } from 'pg';
-import type { HTTPClientOptions, HTTPClientRequestOptions, CookieAttrList, Cookie, Month, CookieDate  } from './types';
+import type { HTTPClientOptions, HTTPClientRequestOptions, CookieAttrList, Cookie, Month, CookieDate } from './types';
 
 const colors = Object.freeze({
 	red: '\x1b[0;31m%s\x1b[0m',
@@ -60,7 +60,7 @@ export default class HTTPClient {
       'Sec-Fetch-User': '?1',
       'Sec-GPC': '1',
       'Upgrade-Insecure-Requests': 1,
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:137.0) Gecko/20100101 Firefox/137.0',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; rv:139.0) Gecko/20100101 Firefox/139.0',
     };
     !this._opt.agentOptions ? this._headers['Connection'] = 'keep-alive' :
       this._opt.agentOptions.keepAlive && (this._headers['Connection'] = 'keep-alive');
@@ -560,7 +560,7 @@ export default class HTTPClient {
   async request(opts: HTTPClientRequestOptions, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, postData?: string): Promise<number> { 
     return new Promise((resolve, reject) => {
       const protocol = opts.protocol === 'http' ? http : https; 
-      const reqCookie = this.parseCookie(opts.host, opts.path, protocol === http ? 'http:' : 'https:');
+      const reqCookie = opts.useCookies === undefined || opts.useCookies ? this.parseCookie(opts.host, opts.path, protocol === http ? 'http:' : 'https:') : '';
       const reqOptions: RequestOptions = {
         agent: (protocol === http ? this._agent : this._secureAgent),
         method: opts.method,
@@ -576,7 +576,7 @@ export default class HTTPClient {
         this._opt.debug && this.printDebug(req, res);
 
         try {
-          if (res.headers['set-cookie']) 
+          if ((opts.useCookies === undefined || opts.useCookies) && res.headers['set-cookie']) 
             this.updateStore(req, res);
         } catch(err: any) {
           reject(new Error(`REQUEST FAILED: ${err.message}`));
