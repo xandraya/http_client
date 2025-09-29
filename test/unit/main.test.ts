@@ -1,4 +1,4 @@
-import HTTPClient from '../../src/index';
+import HTTPClient from '../../src/main';
 import { ClientRequest, IncomingMessage } from 'http';
 
 describe('Cookie Store', () => {

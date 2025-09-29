@@ -1,4 +1,4 @@
-import HTTPClient from '../../src/index';
+import HTTPClient from '../../src/main';
 
 describe('Bootup && Cleanup', () => {
   let s1: HTTPClient;

@@ -1,9 +1,9 @@
 {
-  "name": "76a01a3490137f87",
+  "name": "http_client",
   "version": "1.0.0",
   "description": "",
-  "main": "./lib/index.js",
-  "types": "./lib/index.d.ts",
+  "main": "./lib/main.js",
+  "types": "./lib/main.d.ts",
   "files": [
     "lib/"
   ],
