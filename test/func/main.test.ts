@@ -1,4 +1,5 @@
 import HTTPClient from '../../src/main';
+import { HTTPError } from '../../src/types';
 
 describe('Bootup && Cleanup', () => {
   let s1: HTTPClient;
@@ -49,70 +50,82 @@ describe('Request', () => {
     return Promise.resolve(client.teardown());
   });
 
-  test('TLS GET', () => {
-    return expect(new Promise(async (resolve) => {
-      const opts = Object.freeze({
-        host: 'httpbin.org',
-        path: '/get',
-        method: 'GET',
-      });
+  test('TLS GET', async () => {
+    const opts = Object.freeze({
+      host: 'httpbin.org',
+      path: '/get',
+      method: 'GET',
+    });
 
-      let data: string = '';
-      const cb = (chunk: Buffer) => data += chunk;
-      expect(await client.request(opts, cb)).toBe(0);
+    let data: string = '';
+    const cb = (chunk: Buffer) => data += chunk;
+
+    await client.request(opts, cb, 'foo=bar').then(() => {
       expect(JSON.parse(data).url).toBe('https://httpbin.org/get');
-      resolve(0);
-    })).resolves.toBe(0);
+    });
   }, 10000);
   
-  test('TLS POST', () => {
-    return expect(new Promise(async (resolve) => {
-      const opts = Object.freeze({
-        host: 'httpbin.org',
-        path: '/post',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        }
-      });
-      let data: string = '';
-      const cb = (chunk: Buffer) => data += chunk;
-      expect(await client.request(opts, cb, 'foo=bar')).toBe(0);
+  test('TLS POST', async () => {
+    const opts = Object.freeze({
+      host: 'httpbin.org',
+      path: '/post',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }
+    });
+
+    let data: string = '';
+    const cb = (chunk: Buffer) => data += chunk;
+      
+    await client.request(opts, cb, 'foo=bar').then(() => {
       expect(JSON.parse(data).form.foo).toBe('bar');
-      resolve(0);
-    })).resolves.toBe(0);
+    });
   }, 10000);
 
-  test('HTTP GET', () => {
-    return expect(new Promise(async (resolve) => {
-      const opts = Object.freeze({
-        host: 'example.com',
-        path: '/',
-        method: 'GET',
-        protocol: 'http',
-      });
+  test('HTTP GET', async () => {
+    const opts = Object.freeze({
+      host: 'example.com',
+      path: '/',
+      method: 'GET',
+      protocol: 'http',
+    });
 
-      let data: string = '';
-      const cb = (chunk: Buffer) => data += chunk;
-      expect(await client.request(opts, cb)).toBe(0);
+    let data: string = '';
+    const cb = (chunk: Buffer) => data += chunk;
+
+    await client.request(opts, cb).then(() => {
       expect(data.search('<title>Example Domain</title>')).not.toBe(-1);
-      resolve(0);
-    })).resolves.toBe(0);
+    });
   }, 10000);
 
-  test('Handles 302', () => {
-    return expect(new Promise(async (resolve) => {
-      const opts = Object.freeze({
-        host: 'httpbin.org',
-        path: '/redirect/1',
-        method: 'GET',
-      });
+  test('Handles 301, 302, 307, 308', async () => {
+    const opts = Object.freeze({
+      host: 'httpbin.org',
+      path: '/redirect/2',
+      method: 'GET',
+    });
 
-      let data: string = '';
-      const cb = (chunk: Buffer) => data += chunk;
-      expect(await client.request(opts, cb)).toBe(0);
+    let data: string = '';
+    const cb = (chunk: Buffer) => data += chunk;
+
+    await client.request(opts, cb).then(() => {
       expect(JSON.parse(data).url).toBe('https://httpbin.org/get');
-      resolve(0);
-    })).resolves.toBe(0);
+    });
+  }, 10000);
+
+  test('Handles 4**', async () => {
+    const opts = Object.freeze({
+      host: 'httpbin.org',
+      path: '/status/400',
+      method: 'GET',
+    });
+
+    let data: string = '';
+    const cb = (chunk: Buffer) => data += chunk;
+    
+    await client.request(opts, cb).catch((e: HTTPError) => {
+      expect(e.code).toBe(400);
+    });
   }, 10000);
 });

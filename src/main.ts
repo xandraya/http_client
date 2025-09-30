@@ -17,10 +17,11 @@ const colors = Object.freeze({
 });
 
 /**
- * Each HTTPClient instance should use its own database
-  *@usage * const client = new HTTPClient(opt?: HTTPClientOptions)
-          * await client.bootup()
-          * await client.teardown()
+  * Each HTTPClient instance should use its own database
+  * HTTPClient.request rejection values have the type of HTTPError
+  * @usage * const client = new HTTPClient(opt?: HTTPClientOptions)
+           * await client.bootup()
+           * await client.teardown()
 */
 export default class HTTPClient {
   private _opt!: HTTPClientOptions;
@@ -74,7 +75,7 @@ export default class HTTPClient {
         await this.loadPublicSufixes();
         await this.loadCookieStore();
       } catch(err: any) {
-        reject(new Error(`BOOTUP FAILED: ${err.message}`));
+        reject(`BOOTUP FAILED: ${err.message}`);
       }
       resolve();
     });
@@ -94,7 +95,7 @@ export default class HTTPClient {
 
         await this._client.end();
       } catch(err: any) {
-        reject(new Error(`CLEANUP FAILED: ${err.message}`));
+        reject(`CLEANUP FAILED: ${err.message}`);
       }
       resolve();
     });
@@ -492,41 +493,44 @@ export default class HTTPClient {
     return parsed_cookie_list;
   }
 
-  private async handleHTTPError(res: IncomingMessage, opts: HTTPClientRequestOptions, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, postData?: string): Promise<number> 
-  {
-    let regex: RegExpExecArray | null;
-    let host, path: string | undefined;
+  private async handleHTTPError(res: IncomingMessage, opts: HTTPClientRequestOptions, cb: (data: Buffer, headers?: IncomingHttpHeaders) => void, postData?: string): Promise<number> {
+    // 3** REDIRECT
+    if ([301,302,307,308].includes(res.statusCode!)) {
+      let regex: RegExpExecArray | null;
+      let host, path: string | undefined;
 
-    switch (res.statusCode) {
-      case 302:
-        if (this._opt.debug) {
-          console.log('');
-          console.log(`${colors.blue} ${colors.cyan}`, 'Redirecting to: ', res.headers.location);
-        }
-
-        if (!res.headers.location) throw new Error('302 - redirect path not obtained');
-        res.headers.location.startsWith('http') ?
-          regex = /https:\/\/([^\/]*)(\/.*)/.exec(res.headers.location) :
-          regex = /(\/.*)/.exec(res.headers.location);
-        if (!regex) throw new Error('302 - could not parse URL');
-        regex.shift();
-        path = regex.pop();
-        if (!path) throw new Error('302 - could not parse PATH');
-        host = regex.pop();
-        if (!host) host = opts.host;
-
-        return this.request(Object.assign({}, opts, { host, path }) , cb, postData);
-      case 403:
-        throw new Error('403 - Forbidden');
-      case 429:
+      if (this._opt.debug) {
         console.log('');
-        console.log(colors.yellow, 'Server returned 429; Waiting...');
+        console.log(`${colors.blue} ${colors.cyan}`, 'Redirecting to: ', res.headers.location);
+      }
 
-        await this.timeout(1000*60*5);
-        return this.request(Object.assign({}, opts, { host, path }) , cb, postData);
-      default:
-        throw new Error(`Missing HTTP error handler for status code ${res.statusCode}`);
+      if (!res.headers.location) throw { code: res.statusCode, message: 'Redirect path not obtained' }
+      res.headers.location.startsWith('http') ?
+        regex = /https:\/\/([^\/]*)(\/.*)/.exec(res.headers.location) :
+        regex = /(\/.*)/.exec(res.headers.location);
+      if (!regex) throw { code: res.statusCode, content_type: res.headers['content-type'], message: 'Could not parse URL' }
+      regex.shift();
+      path = regex.pop();
+      if (!path) throw { code: res.statusCode, content_type: res.headers['content-type'], message: 'Could not parse PATH' }
+      host = regex.pop();
+      if (!host) host = opts.host;
+
+      return this.request(Object.assign({}, opts, { host, path }) , cb, postData);
     }
+
+    // 4** ERROR
+    if (res.statusCode! === 429) {
+      console.log('');
+      console.log(colors.yellow, 'Server returned 429; Waiting...');
+
+      await this.timeout(1000*60*5);
+      return this.request(opts, cb, postData);
+    }
+    if (res.statusCode! >= 400 && res.statusCode! < 500)
+      throw { code: res.statusCode, content_type: res.headers['content-type'], message: res.statusMessage };
+
+    // NO HANDLER
+    throw { code: res.statusCode, content_type: res.headers['content-type'], message: 'Missing HTTP error handler' };
   }
 
   private printDebug(req: ClientRequest, res: IncomingMessage) {
@@ -573,22 +577,31 @@ export default class HTTPClient {
       }
 
       const req: ClientRequest = protocol.request(reqOptions, (res) => {
+        const handleEnd = async () => {
+          opts.timeout && await this.timeout(opts.timeout);
+
+          if (!String(res.statusCode).match(/^2\d{2}$/)) 
+            return resolve(this.handleHTTPError(res, opts, cb, postData));
+
+          resolve(0);
+        }
+
         this._opt.debug && this.printDebug(req, res);
 
         try {
           if ((opts.useCookies === undefined || opts.useCookies) && res.headers['set-cookie']) 
             this.updateStore(req, res);
         } catch(err: any) {
-          reject(new Error(`REQUEST FAILED: ${err.message}`));
+          reject({ code: res.statusCode, message: err.message, content_type: res.headers['content-type'] }); 
         }
 
-        if (!String(res.statusCode).match(/^2\d{2}$/)) { 
+        if (String(res.statusCode).match(/3\d{2}$/)) { 
           res.destroy();
           return resolve(this.handleHTTPError(res, opts, cb, postData));
         }
 
         res.on('error', (err: any) => {
-          reject(new Error(`REQUEST FAILED: ${err.message} | ${err.code}`));
+          reject({ code: res.statusCode, message: err.message, content_type: res.headers['content-type'] }); 
         });
 
         if (opts.headersOnly) {
@@ -603,40 +616,27 @@ export default class HTTPClient {
               const gzip = zlib.createGunzip();
               res.pipe(gzip);
               gzip.on('data', (chunk) => cb(chunk, res.headers));
-              gzip.on('end', async () => {
-                opts.timeout && await this.timeout(opts.timeout);
-                resolve(0);
-              });
+              gzip.on('end', handleEnd);
               break;
             case 'deflate':
               const deflate = zlib.createInflate();
               res.pipe(deflate);
               deflate.on('data', (chunk) => cb(chunk, res.headers));
-              deflate.on('end', async () => {
-                opts.timeout && await this.timeout(opts.timeout);
-                resolve(0);
-              });
+              deflate.on('end', handleEnd);
               break;
             case 'br':
               const br = zlib.createBrotliDecompress();
               res.pipe(br);
               br.on('data', (chunk) => cb(chunk, res.headers));
-              br.on('end', async () => {
-                opts.timeout && await this.timeout(opts.timeout);
-                resolve(0);
-              });
+              br.on('end', handleEnd);
               break;
             default:
-              reject(new Error('REQUEST FAILED: Encoding algo not supported'));
-              return;
+              reject({ code: res.statusCode, content_type: res.headers['content-type'], message: 'REQUEST FAILED: Encoding algo not supported' });
           }
         }
         else {
           res.on('data', (chunk) => cb(chunk, res.headers));
-          res.on('end', async () => {
-            opts.timeout && await this.timeout(opts.timeout);
-            resolve(0);
-          });
+          res.on('end', handleEnd);
         }
       });
 
@@ -649,7 +649,7 @@ export default class HTTPClient {
           resolve(this.request(opts, cb, postData));
         }
         else
-          reject(new Error(`REQUEST FAILED: ${err.message} | ${err.code}`));
+          reject({ message: err.message }); 
       });
 
       opts.method === 'POST' && req.write(postData);

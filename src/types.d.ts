@@ -16,6 +16,12 @@ export interface HTTPClientRequestOptions {
   useCookies?: boolean
 }
 
+export interface HTTPError {
+  code?: number
+  message?: string
+  content_type?: string
+}
+
 export interface CookieAttrList {
   name: string
   value: string

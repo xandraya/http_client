@@ -41,7 +41,7 @@ services:
       start_period: 5s
       start_interval: 5s
       retries: 20
-    image: postgres:alpine
+    image: postgres:17-alpine
     networks: 
       - custom
     restart: on-failure:3
